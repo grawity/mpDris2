@@ -204,6 +204,12 @@ covers_names = ('cover', 'front', 'album', 'folder', '.folder', 'Album',)
 covers_exts = ('jpg', 'png', 'jpeg', 'gif',)
 
 
+try:
+    machine_id = open("/etc/machine-id").readline().strip()
+except:
+    machine_id = open("/var/lib/dbus/machine-id").readline.strip()
+
+# Wrapper to handle socket errors and similar
 class MPDWrapper(mpd.MPDClient):
     """ Wrapper of mpd.MPDClient to handle socket
         errors and similar
@@ -717,6 +723,13 @@ class MPDWrapper(mpd.MPDClient):
                 self.reconnect()
                 return False
 
+    def raise_player(self):
+        channel = "clients/%s" % machine_id
+        try:
+            mpd.MPDClient._write_command("sendmessage", [channel, "raise"])
+            mpd.MPDClient._fetch_nothing()
+        except (socket.error, mpd.MPDError, socket.timeout):
+            self.reconnect()
 
 class Notify:
     def __init__(self, params):
@@ -790,7 +803,7 @@ class MPRISInterface(dbus.service.Object):
     __root_interface = "org.mpris.MediaPlayer2"
     __root_props = {
         "CanQuit": (False, None),
-        "CanRaise": (False, None),
+        "CanRaise": (True, None),
         "DesktopEntry": ("mpdris2", None),
         "HasTrackList": (False, None),
         "Identity": (identity, None),
@@ -943,6 +956,7 @@ class MPRISInterface(dbus.service.Object):
     # Root methods
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
     def Raise(self):
+        mpd_wrapper.raise_player()
         return
 
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
