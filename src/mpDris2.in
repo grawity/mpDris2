@@ -203,7 +203,6 @@ downloaded_covers = ['~/.covers/%s-%s.jpg']
 covers_names = ('cover', 'front', 'album', 'folder', '.folder', 'Album',)
 covers_exts = ('jpg', 'png', 'jpeg', 'gif',)
 
-
 class MPDWrapper(mpd.MPDClient):
     """ Wrapper of mpd.MPDClient to handle socket
         errors and similar
@@ -254,11 +253,10 @@ class MPDWrapper(mpd.MPDClient):
             if params['password']:
                 self.password(self._params['password'])
 
+            global urlhandlers
+            urlhandlers = self.urlhandlers()
+
             commands = self.commands()
-            # added in 0.11
-            if 'urlhandlers' in commands:
-                global urlhandlers
-                urlhandlers = self.urlhandlers()
             # added in 0.14
             if 'idle' in commands:
                 self._can_idle = True
