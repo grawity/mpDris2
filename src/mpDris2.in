@@ -25,6 +25,7 @@ import re
 import shlex
 import signal
 import socket
+import subprocess
 import getopt
 import mpd
 import glib
@@ -790,7 +791,7 @@ class MPRISInterface(dbus.service.Object):
     __root_interface = "org.mpris.MediaPlayer2"
     __root_props = {
         "CanQuit": (False, None),
-        "CanRaise": (False, None),
+        "CanRaise": (True, None),
         "DesktopEntry": ("mpdris2", None),
         "HasTrackList": (False, None),
         "Identity": (identity, None),
@@ -943,6 +944,7 @@ class MPRISInterface(dbus.service.Object):
     # Root methods
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
     def Raise(self):
+        subprocess.Popen(["sonata", "--visible"])
         return
 
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
