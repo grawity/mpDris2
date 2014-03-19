@@ -552,8 +552,15 @@ class MPDWrapper(object):
             if mutagen and os.path.exists(song_path):
                 song = mutagen.File(song_path)
                 if 'APIC:' in song.tags:
-                    self._temp_cover = tempfile.NamedTemporaryFile(suffix='.jpg')
-                    self._temp_cover.write(song.tags['APIC:'].data)
+                    tag = song.tags['APIC:']
+                    file_suffix = {
+                        'image/gif':  '.gif',
+                        'image/jpeg': '.jpeg',
+                        'image/png':  '.png',
+                    }.get(str(tag.mime), '.jpeg')
+                    print("chose %s for %r" % (file_suffix, str(tag.mime)))
+                    self._temp_cover = tempfile.NamedTemporaryFile(suffix=file_suffix)
+                    self._temp_cover.write(tag.data)
                     return 'file://' + self._temp_cover.name
 
             # Look in song directory for common album cover files
