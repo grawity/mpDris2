@@ -64,6 +64,8 @@ params = {
     # Bling
     'mmkeys': True,
     'notify': True,
+    # Player
+    'activate': None,
 }
 
 try:
@@ -812,10 +814,16 @@ class MPRISInterface(dbus.service.Object):
         if hasattr(self, "_bus_name"):
             del self._bus_name
 
+    def __can_raise():
+        if mpd_wrapper._params['activate']:
+            return True
+        else:
+            return False
+
     __root_interface = "org.mpris.MediaPlayer2"
     __root_props = {
         "CanQuit": (False, None),
-        "CanRaise": (False, None),
+        "CanRaise": (__can_raise, None),
         "DesktopEntry": ("mpdris2", None),
         "HasTrackList": (False, None),
         "Identity": (identity, None),
@@ -968,6 +976,10 @@ class MPRISInterface(dbus.service.Object):
     # Root methods
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
     def Raise(self):
+        cmd = mpd_wrapper._params['activate']
+        if cmd:
+            logger.debug('Spawning activate command %r' % cmd)
+            os.spawnv(os.P_NOWAIT, "/bin/sh", ["sh", "-c", cmd])
         return
 
     @dbus.service.method(__root_interface, in_signature='', out_signature='')
@@ -1151,9 +1163,13 @@ if __name__ == '__main__':
     if 'MPD_PORT' in os.environ:
         params['port'] = os.environ['MPD_PORT']
 
-    for bling in ['mmkeys', 'notify']:
-        if config.has_option('Bling', bling):
-            params[bling] = config.getboolean('Bling', bling)
+    for opt in ['mmkeys', 'notify']:
+        if config.has_option('Bling', opt):
+            params[opt] = config.getboolean('Bling', opt)
+
+    for opt in ['activate']:
+        if config.has_option('Player', opt):
+            params[opt] = config.get('Player', opt)
 
     try:
         (opts, args) = getopt.getopt(sys.argv[1:], 'hdp:', ['help', 'debug', 'path='])
