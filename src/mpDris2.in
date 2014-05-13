@@ -659,32 +659,54 @@ class MPDWrapper(object):
 
     ## Media keys
 
+    _mmkey_providers = {
+        "org.gnome.SettingsDaemon": (
+            "GNOME Settings Daemon",
+            "/org/gnome/SettingsDaemon/MediaKeys",
+            "org.gnome.SettingsDaemon.MediaKeys",
+        ),
+        "org.mate.SettingsDaemon": (
+            "MATE Settings Daemon",
+            "/org/mate/SettingsDaemon/MediaKeys",
+            "org.mate.SettingsDaemon.MediaKeys",
+        )
+    }
+
     def setup_mediakeys(self):
-            self.register_mediakeys()
-            self._dbus_obj = self._bus.get_object("org.freedesktop.DBus",
-                                                  "/org/freedesktop/DBus")
+        self._dbus_obj = self._bus.get_object("org.freedesktop.DBus",
+                                              "/org/freedesktop/DBus")
+        for bus_name in self._mmkey_providers:
+            self.register_mediakeys(bus_name)
             self._dbus_obj.connect_to_signal("NameOwnerChanged",
                                              self.gsd_name_owner_changed_callback,
-                                             arg0="org.gnome.SettingsDaemon")
+                                             arg0=bus_name)
 
-    def register_mediakeys(self):
+    def register_mediakeys(self, bus_name):
+        env_name, bus_path, bus_iface = self._mmkey_providers[bus_name]
+
         try:
-            gsd_object = self._bus.get_object("org.gnome.SettingsDaemon",
-                                              "/org/gnome/SettingsDaemon/MediaKeys")
-            gsd_object.GrabMediaPlayerKeys("mpDris2", 0,
-                                           dbus_interface="org.gnome.SettingsDaemon.MediaKeys")
-        except:
-            logger.warning("Failed to connect to GNOME Settings Daemon. Media keys won't work.")
-        else:
-            self._bus.remove_signal_receiver(self.mediakey_callback)
-            gsd_object.connect_to_signal("MediaPlayerKeyPressed", self.mediakey_callback)
+            gsd_obj = self._bus.get_object(bus_name, bus_path)
+        except dbus.exceptions.DBusException as e:
+            logger.debug("Could not grab media keys from %s (%s: %r)" %
+                         (bus_name, e.get_dbus_name(), e.get_dbus_message()))
+            return False
+
+        self._bus.remove_signal_receiver(self.mediakey_callback)
+        gsd_obj.GrabMediaPlayerKeys("mpDris2", 0, dbus_interface=bus_iface)
+        gsd_obj.connect_to_signal("MediaPlayerKeyPressed", self.mediakey_callback)
+        logger.info("Grabbed media keys from %s." % env_name)
+        return True
 
     def gsd_name_owner_changed_callback(self, bus_name, old_owner, new_owner):
-        if bus_name == "org.gnome.SettingsDaemon" and new_owner != "":
+        if bus_name in _mmkey_providers and new_owner != "":
+            env_name, bus_path, bus_iface = self._mmkey_providers[bus_name]
+
             def reregister():
-                logger.debug("Re-registering with GNOME Settings Daemon (owner %s)" % new_owner)
-                self.register_mediakeys()
+                logger.debug("Grabbing media keys from %s (owner %s)" %
+                             (env_name, new_owner))
+                self.register_mediakeys(bus_name)
                 return False
+
             # Timeout is necessary since g-s-d takes some time to load all plugins.
             glib.timeout_add(600, reregister)
 
