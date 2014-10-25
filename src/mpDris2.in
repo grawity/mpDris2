@@ -606,24 +606,10 @@ class MPDWrapper(object):
             self._dbus_service.update_property('org.mpris.MediaPlayer2.Player',
                                                'PlaybackStatus')
 
-        if not force:
-            old_id = old_status.get('songid', None)
-            new_id = new_status.get('songid', None)
-            force = (old_id != new_id)
+        old_id = old_status.get('songid', None)
+        new_id = new_status.get('songid', None)
 
-        if not force:
-            if new_status['state'] == 'play':
-                expected_position = old_position + (new_time - old_time)
-            else:
-                expected_position = old_position
-            if abs(new_position - expected_position) > 0.6:
-                logger.debug("Expected pos %r, actual %r, diff %r" % (
-                    expected_position, new_position, new_position - expected_position))
-                logger.debug("Old position was %r at %r (%r seconds ago)" % (
-                    old_position, old_time, new_time - old_time))
-                self._dbus_service.Seeked(new_position * 1000000)
-
-        else:
+        if force or (old_id != new_id):
             # Update current song metadata
             old_meta = self._metadata.copy()
             self.update_metadata()
@@ -648,6 +634,18 @@ class MPDWrapper(object):
                     or old_meta.get('xesam:url', None) != new_meta.get('xesam:url', None):
                     # FIXME: maybe this could be done in a nicer way?
                     notification.notify(title, _('by %s') % artist, uri)
+
+        if old_id == new_id:
+            if new_status['state'] == 'play':
+                expected_position = old_position + (new_time - old_time)
+            else:
+                expected_position = old_position
+            if abs(new_position - expected_position) > 0.6:
+                logger.debug("Expected pos %r, actual %r, diff %r" % (
+                    expected_position, new_position, new_position - expected_position))
+                logger.debug("Old position was %r at %r (%r seconds ago)" % (
+                    old_position, old_time, new_time - old_time))
+                self._dbus_service.Seeked(new_position * 1000000)
 
         # "mixer" subsystem
 
