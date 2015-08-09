@@ -82,7 +82,7 @@ params = {
     'music_dir': '',
     'cover_regex': re.compile(
                     r'^(album|cover|\.?folder|front).*\.(gif|jpeg|jpg|png)$',
-                    re.I | re.X)
+                    re.I | re.X),
     # Bling
     'mmkeys': True,
     'notify': (using_gi_notify or using_old_notify),
