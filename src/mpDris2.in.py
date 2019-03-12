@@ -280,9 +280,7 @@ class MPDWrapper(object):
         self._position = 0
         self._time = 0
 
-        self._bus = dbus.SessionBus()
-        if self._params['mmkeys']:
-            self.setup_mediakeys()
+        self.init_dbus()
 
     def run(self):
         """
@@ -787,15 +785,21 @@ class MPDWrapper(object):
             self._dbus_service.update_property('org.mpris.MediaPlayer2.Player',
                                                'CanGoNext')
 
-    ## Media keys
+    ## Media keys and notifications
 
-    def setup_mediakeys(self):
+    def init_dbus(self):
+        self._bus = dbus.SessionBus()
+        self._dbus_obj = self._bus.get_object("org.freedesktop.DBus",
+                                              "/org/freedesktop/DBus")
+        if self._params["mmkeys"]:
             self.register_mediakeys()
-            self._dbus_obj = self._bus.get_object("org.freedesktop.DBus",
-                                                  "/org/freedesktop/DBus")
             self._dbus_obj.connect_to_signal("NameOwnerChanged",
-                                             self.gsd_name_owner_changed_callback,
+                                             self.name_owner_changed_callback,
                                              arg0="org.gnome.SettingsDaemon")
+        if self._params["notify"]:
+            self._dbus_obj.connect_to_signal("NameOwnerChanged",
+                                             self.name_owner_changed_callback,
+                                             arg0="org.freedesktop.Notifications")
 
     def register_mediakeys(self):
         try:
@@ -814,7 +818,7 @@ class MPDWrapper(object):
             self._bus.remove_signal_receiver(self.mediakey_callback)
             gsd_object.connect_to_signal("MediaPlayerKeyPressed", self.mediakey_callback)
 
-    def gsd_name_owner_changed_callback(self, bus_name, old_owner, new_owner):
+    def name_owner_changed_callback(self, bus_name, old_owner, new_owner):
         if bus_name == "org.gnome.SettingsDaemon" and new_owner != "":
             def reregister():
                 logger.debug("Re-registering with GNOME Settings Daemon (owner %s)" % new_owner)
@@ -822,6 +826,9 @@ class MPDWrapper(object):
                 return False
             # Timeout is necessary since g-s-d takes some time to load all plugins.
             GLib.timeout_add(600, reregister)
+        elif bus_name == "org.freedesktop.Notifications" and new_owner != "":
+            logger.debug("Reinitializing notifications (owner %s)" % new_owner)
+            notification.init_backend()
 
     ## Compatibility functions
 
@@ -904,9 +911,12 @@ class MPDWrapper(object):
 class NotifyWrapper(object):
 
     def __init__(self, params):
+        self._params = params
         self._notification = None
+        self.init_backend()
 
-        if not params["notify"]:
+    def init_backend(self):
+        if not self._params["notify"]:
             return
 
         bus = dbus.SessionBus()
@@ -938,7 +948,7 @@ class NotifyWrapper(object):
     def notify(self, title, body, uri=''):
         if self._notification:
             try:
-                self._notification.set_urgency(params['notify_urgency'])
+                self._notification.set_urgency(self._params['notify_urgency'])
                 self._notification.update(title, body, uri)
                 self._notification.show()
             except GLib.GError as err:
